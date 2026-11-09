@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Munkmoraskolan - Övervakningssystem v2.0</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --card-bg: #ffffff;
+            --text-color: #1c1e21;
+            --primary: #007bff;
+            --danger: #dc3545;
+            --success: #28a745;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+            max-width: 650px;
+            width: 100%;
+            text-align: center;
+            transition: background 0.3s;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #0056b3;
+        }
+
+        p {
+            color: #65676b;
+            margin-bottom: 25px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            font-weight: bold;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .status-safe { background-color: #e2f0d9; color: #385723; }
+        .status-blocked {
+            background-color: #fce4d6; color: #c65911;
+            animation: pulse 1s infinite alternate;
+        }
+
+        .btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            margin: 10px;
+        }
+
+        .btn:active { transform: scale(0.98); }
+        .btn-danger { background-color: var(--danger); }
+        .btn-secondary { background-color: #6c757d; }
+
+        .simulation-zone {
+            margin-top: 30px;
+            padding: 25px;
+            border: 2px dashed #ccd0d5;
+            border-radius: 8px;
+            background-color: rgba(0,0,0,0.02);
+        }
+
+        body.teacher-mode {
+            --bg-color: #18191a;
+            --card-bg: #242526;
+            --text-color: #e4e6eb;
+        }
+
+        body.teacher-mode h1 { color: #4599ff; }
+
+        .teacher-alert {
+            background-color: var(--danger);
+            color: white;
+            padding: 15px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 20px;
+            animation: flash 0.6s infinite;
+        }
+
+        .stream-container {
+            width: 100%;
+            background: #000;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 20px 0;
+            border: 2px solid #3e4042;
+            aspect-ratio: 16 / 9;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #b0b3b8;
+            position: relative;
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .live-tag {
+            position: absolute; top: 15px; left: 15px;
+            background: var(--success); color: white;
+            padding: 4px 10px; font-size: 12px; font-weight: bold;
+            border-radius: 4px; z-index: 10;
+        }
+
+        .timer-display {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--danger);
+            margin: 15px 0;
+            letter-spacing: 2px;
+        }
+
+        .secret-trigger {
+            position: fixed; bottom: 15px; right: 15px;
+            background: none; border: none; color: #8a8d91;
+            font-size: 12px; cursor: pointer; opacity: 0.4;
+        }
+        .secret-trigger:hover { opacity: 1; }
+
+        @keyframes pulse { from { transform: scale(1); } to { transform: scale(1.03); } }
+        @keyframes flash { 0%, 100% { background-color: var(--danger); } 50% { background-color: #7b1111; } }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div id="willePanel" class="card">
+        <h1>Munkmoraskolan – Elevterminal</h1>
+        <p>Inloggad elev: <strong>Wille</strong></p>
+        <div id="willeStatus" class="status-badge status-safe">🛡️ System skyddat och aktivt</div>
+        <div id="countdownBox" class="hidden">
+            <p style="color: var(--danger); margin-bottom: 5px; font-weight: bold;">TID KVAR PÅ BAN:</p>
+            <div id="willeTimer" class="timer-display">10:00</div>
+        </div>
+        <div id="willeControls">
+            <button id="btnShare" class="btn">🔗 Starta skärmströmning till Fröken</button>
+            <div class="simulation-zone">
+                <h3>Säkerhetstest (Simulering)</h3>
+                <p>Klicka nedan för att simulera att Wille öppnar fliken Myinstants.</p>
+                <button id="btnTrigger" class="btn btn-danger">Gå till Myinstants.com</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="teacherPanel" class="card hidden">
+        <h1>Lärarpanel: Övervakning klassrum</h1>
+        <p>Administratörsbehörighet godkänd</p>
+        <div id="teacherAlert" class="teacher-alert hidden">🚨 SYSTEMLARM: WILLE SURFAR PÅ MYINSTANTS! 🚨</div>
+        <div class="stream-container">
+            <div class="live-tag">LIVE</div>
+            <video id="screenVideo" autoplay playsinline muted></video>
+            <div id="videoPlaceholder">Ingen aktiv skärmdelning hittades</div>
+        </div>
+        <div id="teacherTimerBox" class="hidden">
+            <p>Willes avstängningstid:</p>
+            <div id="teacherTimer" class="timer-display">10:00</div>
+        </div>
+        <div>
+            <button id="btnReset" class="btn btn-danger">Nollställ Larm & Häv Ban</button>
+            <button id="btnLogout" class="btn btn-secondary">Logga ut från panelen</button>
+        </div>
+    </div>
+
+    <button id="secretLogin" class="secret-trigger">🔒 [Lärarinloggning]</button>
+    <audio id="siren" loop></audio>
+
+    <script>
+        const willePanel = document.getElementById('willePanel');
+        const teacherPanel = document.getElementById('teacherPanel');
+        const secretLogin = document.getElementById('secretLogin');
+        const btnLogout = document.getElementById('btnLogout');
+        const btnShare = document.getElementById('btnShare');
+        const btnTrigger = document.getElementById('btnTrigger');
+        const willeStatus = document.getElementById('willeStatus');
+        const countdownBox = document.getElementById('countdownBox');
+        const willeTimer = document.getElementById('willeTimer');
+        const willeControls = document.getElementById('willeControls');
+        const siren = document.getElementById('siren');
+        const teacherAlert = document.getElementById('teacherAlert');
+        const screenVideo = document.getElementById('screenVideo');
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const teacherTimerBox = document.getElementById('teacherTimerBox');
+        const teacherTimer = document.getElementById('teacherTimer');
+        const btnReset = document.getElementById('btnReset');
+
+        let countdownInterval;
+        let activeStream;
+        let clearingAlarm = false;
+
+        function formatTime(milliseconds) {
+            const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        secretLogin.addEventListener('click', () => {
+            const password = prompt('Skriv in frökens unika kod:');
+            if (password === 'frok123willeban') {
+                document.body.classList.add('teacher-mode');
+                willePanel.classList.add('hidden');
+                secretLogin.classList.add('hidden');
+                teacherPanel.classList.remove('hidden');
+                syncPanelData();
+            } else if (password !== null) {
+                alert('Felaktig kod. Behörighetsfel.');
+            }
+        });
+
+        btnLogout.addEventListener('click', () => {
+            document.body.classList.remove('teacher-mode');
+            teacherPanel.classList.add('hidden');
+            willePanel.classList.remove('hidden');
+            secretLogin.classList.remove('hidden');
+            document.body.style.backgroundColor = '';
+            syncPanelData();
+        });
+
+        btnShare.addEventListener('click', async () => {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                alert('Skärmdelning stöds inte i den här webbläsaren eller kräver en säker anslutning (HTTPS).');
+                return;
+            }
+
+            try {
+                activeStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                willeStatus.innerText = '📺 Skärm delas aktivt med lärare';
+                btnShare.style.display = 'none';
+                localStorage.setItem('sys_screen_streaming', 'true');
+                screenVideo.srcObject = activeStream;
+                videoPlaceholder.classList.add('hidden');
+
+                const videoTrack = activeStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.addEventListener('ended', stopScreenShare, { once: true });
+                }
+            } catch (error) {
+                console.error('Screen sharing failed:', error);
+                alert('Skärmdelningen startades inte. Kontrollera behörigheten och försök igen.');
+            }
+        });
+
+        function stopScreenShare() {
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
+            }
+            willeStatus.innerText = '🛡️ System skyddat och aktivt';
+            btnShare.style.display = '';
+            localStorage.setItem('sys_screen_streaming', 'false');
+            screenVideo.srcObject = null;
+            videoPlaceholder.classList.remove('hidden');
+            syncPanelData();
+        }
+
+        btnTrigger.addEventListener('click', () => {
+            const targetTime = Date.now() + 10 * 60 * 1000;
+            localStorage.setItem('sys_ban_time', String(targetTime));
+            localStorage.setItem('sys_alarm_state', 'true');
+            executeLocalBan();
+            setTimeout(() => alert('Dator bannad på 10 minuter. Fröken kommer nu.'), 100);
+        });
+
+        function executeLocalBan() {
+            willeStatus.innerText = '❌ DATOR BLOCKERAD – OTILLÅTEN SIDA';
+            willeStatus.className = 'status-badge status-blocked';
+            willeControls.classList.add('hidden');
+            countdownBox.classList.remove('hidden');
+            siren.play().catch(() => console.log('Siren playback was blocked by the browser.'));
+            startTimerCountdown();
+        }
+
+        function startTimerCountdown() {
+            clearInterval(countdownInterval);
+            const updateCountdown = () => {
+                const targetTime = Number(localStorage.getItem('sys_ban_time'));
+                if (!targetTime || localStorage.getItem('sys_alarm_state') !== 'true') {
+                    clearInterval(countdownInterval);
+                    return;
+                }
+
+                const timeLeft = targetTime - Date.now();
+                if (timeLeft <= 0) {
+                    clearAllAlarms();
+                    return;
+                }
+
+                const formattedTime = formatTime(timeLeft);
+                willeTimer.innerText = formattedTime;
+                teacherTimer.innerText = formattedTime;
+            };
+
+            updateCountdown();
+            if (localStorage.getItem('sys_alarm_state') === 'true') {
+                countdownInterval = setInterval(updateCountdown, 1000);
+            }
+        }
+
+        function syncPanelData() {
+            const alarmActive = localStorage.getItem('sys_alarm_state') === 'true';
+            const streaming = localStorage.getItem('sys_screen_streaming') === 'true';
+
+            if (alarmActive) {
+                teacherAlert.classList.remove('hidden');
+                teacherTimerBox.classList.remove('hidden');
+                document.body.style.backgroundColor = '#3a1111';
+                startTimerCountdown();
+            } else {
+                teacherAlert.classList.add('hidden');
+                teacherTimerBox.classList.add('hidden');
+                document.body.style.backgroundColor = document.body.classList.contains('teacher-mode') ? '#18191a' : '';
+            }
+
+            if (streaming) {
+                videoPlaceholder.innerText = '[SKÄRM AKTIV] Wille delar sitt skrivbord';
+                videoPlaceholder.style.color = 'var(--success)';
+            } else {
+                videoPlaceholder.innerText = 'Ingen aktiv skärmdelning hittades';
+                videoPlaceholder.style.color = '#b0b3b8';
+            }
+        }
+
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'sys_alarm_state' || event.key === 'sys_ban_time') {
+                if (localStorage.getItem('sys_alarm_state') === 'true') {
+                    if (!willePanel.classList.contains('hidden')) executeLocalBan();
+                    syncPanelData();
+                } else if (event.key === 'sys_alarm_state') {
+                    clearAllAlarms();
+                }
+            }
+            if (event.key === 'sys_screen_streaming') syncPanelData();
+        });
+
+        function clearAllAlarms() {
+            if (clearingAlarm) return;
+            clearingAlarm = true;
+            localStorage.setItem('sys_alarm_state', 'false');
+            localStorage.removeItem('sys_ban_time');
+            clearInterval(countdownInterval);
+
+            siren.pause();
+            siren.currentTime = 0;
+            willeStatus.innerText = '🛡️ System skyddat och aktivt';
+            willeStatus.className = 'status-badge status-safe';
+            willeControls.classList.remove('hidden');
+            countdownBox.classList.add('hidden');
+            syncPanelData();
+            clearingAlarm = false;
+        }
+
+        btnReset.addEventListener('click', () => {
+            clearAllAlarms();
+            alert('Larmet nollställt och Willes dator har låsts upp.');
+        });
+
+        syncPanelData();
+    </script>
+</body>
+</html>
